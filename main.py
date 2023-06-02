@@ -1,7 +1,39 @@
 import cv2 as cv
 import numpy as np
 from pathlib import Path
+from ppadb.client import Client
 from sklearn.cluster import DBSCAN
+
+
+def get_hu_device() -> Client.DEVICE:
+    """
+    This function requires ADB to be running or else a RuntimeError error will arise
+    This function gets the hu_device and returns it. If the device is not found then it will return None
+    :return: Client.DEVICE
+    """
+    client = Client()
+    devices = client.devices()
+    client.devices()
+    hu_device = None
+    for device in devices:
+        if "Harman" in device.shell("getprop ro.product.manufacturer"):
+            hu_device = device
+            break
+    return hu_device
+
+
+def take_screenshot_of_android_device(hu_device: Client.DEVICE, screenshot_path: Path):
+    """
+    This function takes a screenshot of an android device to the path that is specified
+    :param hu_device: a Client.DEVICE that is specified by a the ppadb library
+    :param screenshot_path: screenshot_path: pathlib Path object that defines the location where the path is saved
+    :return: None
+    """
+    if hu_device is not None:
+        result = hu_device.screencap()
+        with open(f"{screenshot_path.resolve()}", "wb") as fp:
+            fp.write(result)
+        return hu_device
 
 
 def find_image_locations(main_image_path: Path, sub_image_path: Path, confidence_interval: float) -> list:
@@ -14,7 +46,7 @@ def find_image_locations(main_image_path: Path, sub_image_path: Path, confidence
 
     :param main_image_path: a pathlib path object which stores the location of the main image
     :param sub_image_path: a pathlib path object which stores the location of the sub image
-    :param confidence_interval: the tolerance at which the sub must fit into the main (0.0, 1.0] typically 0.7
+    :param confidence_interval: the tolerance at which the sub must fit into the main [0.0, 1.0] typically 0.7
     :return: returns a list of tuples of 2d points that represent coordinates of the pixel location
     """
     # input validation
@@ -26,7 +58,10 @@ def find_image_locations(main_image_path: Path, sub_image_path: Path, confidence
     if not (0 <= confidence_interval <= 1):
         exception_group.append(ValueError("Confidence Interval must be between 0 and 1"))
     if exception_group:
-        raise ExceptionGroup("Arguments to the Function were not Valid", exception_group)
+        if len(exception_group) == 1:
+            raise exception_group[0]
+        else:
+            raise ExceptionGroup("Arguments to the Function were not Valid", exception_group)
 
     # finds the location of all points where the sub image can be found in the main image
     main_image_rgb = cv.imread(f"{main_image_path.resolve()}")
@@ -52,12 +87,27 @@ def find_image_locations(main_image_path: Path, sub_image_path: Path, confidence
     return filtered_points
 
 
-def main():
-    main_image_path = Path("./large.png")
-    sub_image_path = Path("./small.png")
-    found_points = find_image_locations(main_image_path, sub_image_path, confidence_interval=0.8)
-    assert len(found_points) == 1, f"At least/Only 1 point should be found. However {len(found_points)} were found"
+def press_on_android_device(hu_device: Client.DEVICE, location_x: int, location_y: int):
+    """
+    This function will press on the x and y location of the client device
+    :param hu_device: the device that is going to be pressed
+    :param location_x: int - the x location where the device is pressed
+    :param location_y: int - the y location where the device is pressed
+    :return:
+    """
+    hu_device.shell(f"input tap {location_x} {location_y}")
 
+
+def main():
+    screenshot_path = Path("./screenshot.png")
+    to_find_image_path = Path("./to_find.png")
+    hu_device = get_hu_device()
+    assert hu_device is not None, "The hu_device defined by the get_hu_device() function was not found"
+    take_screenshot_of_android_device(hu_device, screenshot_path)
+    found_points = find_image_locations(screenshot_path, to_find_image_path, confidence_interval=0.8)
+    assert len(found_points) == 1, f"At least/Only 1 point should be found. However {len(found_points)} were found"
+    to_press_location = found_points[0]
+    press_on_android_device(hu_device, location_x=to_press_location[0], location_y=to_press_location[1])
 
 
 if __name__ == '__main__':
