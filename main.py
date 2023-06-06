@@ -25,7 +25,7 @@ def get_hu_device() -> Client.DEVICE:
 def take_screenshot_of_android_device(hu_device: Client.DEVICE, screenshot_path: Path):
     """
     This function takes a screenshot of an android device to the path that is specified
-    :param hu_device: a Client.DEVICE that is specified by a the ppadb library
+    :param hu_device: a Client.DEVICE that is specified by the ppadb library
     :param screenshot_path: screenshot_path: pathlib Path object that defines the location where the path is saved
     :return: None
     """
@@ -58,10 +58,11 @@ def find_image_locations(main_image_path: Path, sub_image_path: Path, confidence
     if not (0 <= confidence_interval <= 1):
         exception_group.append(ValueError("Confidence Interval must be between 0 and 1"))
     if exception_group:
-        if len(exception_group) == 1:
-            raise exception_group[0]
-        else:
-            raise ExceptionGroup("Arguments to the Function were not Valid", exception_group)
+        raise exception_group[0]
+        # if len(exception_group) == 1:
+        #     raise exception_group[0]
+        # else:
+        #     raise ExceptionGroup("Arguments to the Function were not Valid", exception_group)
 
     # finds the location of all points where the sub image can be found in the main image
     main_image_rgb = cv.imread(f"{main_image_path.resolve()}")
