@@ -29,11 +29,10 @@ def take_screenshot_of_android_device(hu_device: Client.DEVICE, screenshot_path:
     :param screenshot_path: screenshot_path: pathlib Path object that defines the location where the path is saved
     :return: None
     """
-    if hu_device is not None:
-        result = hu_device.screencap()
-        with open(f"{screenshot_path.resolve()}", "wb") as fp:
-            fp.write(result)
-        return hu_device
+    result = hu_device.screencap()
+    with open(str(screenshot_path.resolve()), "wb") as fp:
+        fp.write(result)
+    return hu_device
 
 
 def find_image_locations(main_image_path: Path, sub_image_path: Path, confidence_interval: float) -> list:
@@ -65,20 +64,23 @@ def find_image_locations(main_image_path: Path, sub_image_path: Path, confidence
         #     raise ExceptionGroup("Arguments to the Function were not Valid", exception_group)
 
     # finds the location of all points where the sub image can be found in the main image
-    main_image_rgb = cv.imread(f"{main_image_path.resolve()}")
+    main_image_rgb = cv.imread(str(main_image_path.resolve()))
     main_image_gray = cv.cvtColor(main_image_rgb, cv.COLOR_BGR2GRAY)
-    sub_image = cv.imread(f"{sub_image_path.resolve()}", cv.IMREAD_GRAYSCALE)
+    sub_image = cv.imread(str(sub_image_path.resolve()), cv.IMREAD_GRAYSCALE)
     sub_image_width, sub_image_height = sub_image.shape[::-1]
     results = cv.matchTemplate(main_image_gray, sub_image, cv.TM_CCOEFF_NORMED)
     locations = np.where(results >= confidence_interval)
 
+    if len(locations) == 0:
+        return []
+
     # converts the points to return the center location where the image is found
-    points = [(x_cord + sub_image_width // 2, y_cord + sub_image_height // 2)
-              for x_cord, y_cord in zip(*locations[::-1])]
+    points = np.array([(x_cord + sub_image_width // 2, y_cord + sub_image_height // 2)
+                       for x_cord, y_cord in zip(*locations[::-1])], dtype=int)
 
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.DBSCAN.html
     # uses the DBSCAN algorithm to remove any duplicate similar points
-    cluster = DBSCAN(eps=5, min_samples=1).fit(np.array(points, dtype=int))
+    cluster = DBSCAN(eps=5, min_samples=1).fit(points)
     filtered_points = []
     used_labels_set = set()
     for index, label in enumerate(cluster.labels_):
@@ -105,7 +107,7 @@ def main():
     hu_device = get_hu_device()
     assert hu_device is not None, "The hu_device defined by the get_hu_device() function was not found"
     take_screenshot_of_android_device(hu_device, screenshot_path)
-    found_points = find_image_locations(screenshot_path, to_find_image_path, confidence_interval=0.8)
+    found_points = find_image_locations(screenshot_path, to_find_image_path, confidence_interval=0.80)
     assert len(found_points) == 1, f"At least/Only 1 point should be found. However {len(found_points)} were found"
     to_press_location = found_points[0]
     press_on_android_device(hu_device, location_x=to_press_location[0], location_y=to_press_location[1])
